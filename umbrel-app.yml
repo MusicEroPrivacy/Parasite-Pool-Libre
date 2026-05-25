@@ -1,0 +1,33 @@
+manifestVersion: 1
+id: parasite-pool-libre
+category: bitcoin
+name: Parasite Pool + LibreNode
+version: "1.0.0"
+tagline: Parasite Pool proxy with LibreNode integration
+description: >
+  Run a Parasite Pool connection proxy for solo mining with LibreNode as your node backend.
+
+  Miner connection:
+    - URL: `stratum+tcp://<your-host-ip>:3333`
+    - Username: worker name (optional)
+    - Password: anything
+
+  Notes:
+    - Configure LibreNode RPC credentials in Settings
+    - Parasite Pool upstream: stratum+tcp://parasite.wtf:42069
+    - Shares are validated through your local LibreNode instance
+
+developer: MusicEroPrivacy
+website: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre
+repo: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre
+support: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre/issues
+dependencies: []
+port: 21216
+icon: "https://raw.githubusercontent.com/MusicEroPrivacy/Parasite-Pool-Libre/main/icon.svg"
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+backupIgnore:
+  - data/logs
+submitter: MusicEroPrivacy
