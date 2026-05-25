@@ -22,7 +22,7 @@ website: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre
 repo: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre
 support: https://github.com/MusicEroPrivacy/Parasite-Pool-Libre/issues
 dependencies: []
-port: 21216
+port: 42071
 icon: "https://raw.githubusercontent.com/MusicEroPrivacy/Parasite-Pool-Libre/main/icon.svg"
 gallery: []
 path: ""
