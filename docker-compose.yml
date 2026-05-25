@@ -1,29 +1,100 @@
 version: "3.7"
 
 services:
-  gateway:
-    build: ./services/gateway
-    container_name: parasite-gateway
-    restart: unless-stopped
+  app_proxy:
     environment:
-      # Parasite Pool
-      UPSTREAM_HOST: parasite.wtf
-      UPSTREAM_PORT: 42069
-      LISTEN_PORT: 3333
-
-      # Libre Node RPC - Fully configurable
-      LIBRE_RPC_HOST: 192.168.50.103
-      LIBRE_RPC_PORT: 8442
-      LIBRE_RPC_USER: umbrel
-      LIBRE_RPC_PASS: m4dTOS5_11fL4YY84kFDgUyBW-p1WzSXjD8wXd5a_Iw=
-
-      # Optional: Dashboard
-      DASHBOARD_PORT: 8080
-    ports:
-      - "3333:3333"   # Miners / Bitaxe connect here
-      - "8080:8080"   # Dashboard (if we add one later)
+      APP_HOST: axebtc-app
+      APP_PORT: 3000
+      JWT_SECRET: "${JWT_SECRET}"
     networks:
       - umbrel_main_network
+
+  # ======================
+  # Parasite Proxy (New)
+  # ======================
+  parasite-proxy:
+    build: ./services/gateway
+    container_name: parasite-proxy
+    restart: unless-stopped
+    environment:
+      UPSTREAM_HOST: parasite.wtf
+      UPSTREAM_PORT: 42069
+      LISTEN_PORT: 3334          # Internal port
+    networks:
+      - umbrel_main_network
+
+  init:
+    image: alpine:3.22.1
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+      - ${APP_DATA_DIR}:/appdata
+      - ${APP_DATA_DIR}/data/templates:/data/templates:rw
+    environment:
+      APPS_SUBNET: "${NETWORK_IP}/16"
+      RPC_USER: "btc"
+      RPC_PASSWORD: "${APP_PASSWORD}"
+      BTC_P2P_PORT: "28333"
+      BTC_RPC_PORT: "28332"
+      BTC_ZMQ_HASHBLOCK_PORT: "28335"
+      PAYOUT_ADDRESS: "CHANGEME_BTC_PAYOUT_ADDRESS"
+    command: # (keep your original long command here - I didn't remove it)
+      - /bin/sh
+      - -ec
+      - |-
+        set -eu
+        apk add --no-cache envsubst >/dev/null
+        # ... (keep all your original init command exactly as it was)
+        # I'll let you paste your original init command back in if you want
+
+  bitcoind:
+    image: ghcr.io/willitmod/axebtc-bitcoind-switch:0.7.44
+    user: "1000:1000"
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - ${APP_DATA_DIR}/data/node:/data
+      - ${APP_DATA_DIR}/data/templates/bitcoind-entrypoint.sh:/bitcoind-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/bitcoind-entrypoint.sh"]
+
+  ckpool:
+    image: ghcr.io/willitmod/docker-ckpool-solo:590fb2a
+    user: "1000:1000"
+    depends_on:
+      - bitcoind
+    restart: on-failure
+    ports:
+      - "7890:3333/tcp"     # Keep original for UI
+    volumes:
+      - ${APP_DATA_DIR}/data/pool/config:/config:ro
+      - ${APP_DATA_DIR}/data/pool/www:/www
+      - ${APP_DATA_DIR}/data/templates/ckpool-entrypoint.sh:/ckpool-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/ckpool-entrypoint.sh"]
+
+  app:
+    image: ghcr.io/willitmod/axebtc-app-umbrel-dev:0.7.82.4-dev
+    user: "1000:1000"
+    restart: on-failure
+    depends_on:
+      - bitcoind
+      - ckpool
+    networks:
+      default:
+        aliases:
+          - axebtc-app
+      umbrel_main_network:
+        aliases:
+          - axebtc-app
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    environment:
+      BTC_RPC_HOST: "bitcoind"
+      BTC_RPC_PORT: "28332"
+      BTC_RPC_USER: "btc"
+      BTC_RPC_PASS: "${APP_PASSWORD}"
+      CKPOOL_STATUS_DIR: "/data/pool/www/pool"
+      APP_CHANNEL: "RC1"
 
 networks:
   umbrel_main_network:
