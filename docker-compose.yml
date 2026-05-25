@@ -1,126 +1,29 @@
 version: "3.7"
 
 services:
-  app_proxy:
+  gateway:
+    build: ./services/gateway
+    container_name: parasite-gateway
+    restart: unless-stopped
     environment:
-      APP_HOST: parasite-app
-      APP_PORT: 3000
-      JWT_SECRET: "${JWT_SECRET}"
+      # Parasite Pool
+      UPSTREAM_HOST: parasite.wtf
+      UPSTREAM_PORT: 42069
+      LISTEN_PORT: 3333
+
+      # Libre Node RPC - Fully configurable
+      LIBRE_RPC_HOST: 192.168.50.103
+      LIBRE_RPC_PORT: 8442
+      LIBRE_RPC_USER: umbrel
+      LIBRE_RPC_PASS: m4dTOS5_11fL4YY84kFDgUyBW-p1WzSXjD8wXd5a_Iw=
+
+      # Optional: Dashboard
+      DASHBOARD_PORT: 8080
+    ports:
+      - "3333:3333"   # Miners / Bitaxe connect here
+      - "8080:8080"   # Dashboard (if we add one later)
     networks:
       - umbrel_main_network
-
-  init:
-    image: alpine:3.22.1
-    volumes:
-      - ${APP_DATA_DIR}/data:/data
-      - ${APP_DATA_DIR}:/appdata
-      - ${APP_DATA_DIR}/data/templates:/data/templates:rw
-    environment:
-      APPS_SUBNET: "${NETWORK_IP}/16"
-      LIBRE_RPC_HOST: "192.168.50.103"
-      LIBRE_RPC_PORT: "8442"
-      LIBRE_RPC_USER: "umbrel"
-      LIBRE_RPC_PASS: "${LIBRE_RPC_PASSWORD}"
-      PARASITE_HOST: "parasite.wtf"
-      PARASITE_PORT: "42069"
-      MINER_LISTEN_PORT: "3333"
-    command:
-      - /bin/sh
-      - -ec
-      - |-
-        set -eu
-        apk add --no-cache envsubst >/dev/null
-        
-        # Persist JWT secret
-        if [ -n "$${JWT_SECRET:-}" ]; then
-          envfile="/appdata/.env"
-          tmp="/appdata/.env.tmp"
-          if [ -f "$$envfile" ]; then
-            grep -v '^JWT_SECRET=' "$$envfile" > "$$tmp" || true
-          else
-            : > "$$tmp"
-          fi
-          printf "JWT_SECRET=%s\n" "$$JWT_SECRET" >> "$$tmp"
-          chmod 600 "$$tmp" || true
-          chown 1000:1000 "$$tmp" || true
-          mv "$$tmp" "$$envfile"
-        fi
-        
-        mkdir -p /data/proxy /data/logs
-        
-        # Ensure template scripts are executable
-        chmod +x /data/templates/parasite-proxy-entrypoint.sh 2>/dev/null || true
-        chown 1000:1000 /data/templates/parasite-proxy-entrypoint.sh 2>/dev/null || true
-        
-        # Create settings file if it doesn't exist
-        if [ ! -f /appdata/settings.yml ]; then
-          cat > /appdata/settings.yml << 'EOF'
-libre_rpc_host: "192.168.50.103"
-libre_rpc_port: 8442
-libre_rpc_user: "umbrel"
-libre_rpc_password: ""
-parasite_host: "parasite.wtf"
-parasite_port: 42069
-miner_listen_port: 3333
-EOF
-          chown 1000:1000 /appdata/settings.yml
-        fi
-        
-        # Create proxy config from template
-        if [ ! -f /data/proxy/config.py ]; then
-          envsubst < /data/templates/proxy-config.template > /data/proxy/config.py
-          chown 1000:1000 /data/proxy/config.py
-        fi
-
-  parasite-proxy:
-    image: python:3.11-slim
-    user: "1000:1000"
-    depends_on:
-      init:
-        condition: service_completed_successfully
-    restart: on-failure
-    stop_grace_period: 30s
-    ports:
-      - "7890:3333/tcp"
-    volumes:
-      - ${APP_DATA_DIR}/data/proxy:/app
-      - ${APP_DATA_DIR}/data/logs:/logs
-      - ${APP_DATA_DIR}/data/templates/parasite-proxy-entrypoint.sh:/parasite-proxy-entrypoint.sh:ro
-    environment:
-      LIBRE_RPC_HOST: "192.168.50.103"
-      LIBRE_RPC_PORT: "8442"
-      LIBRE_RPC_USER: "umbrel"
-      LIBRE_RPC_PASS: "${LIBRE_RPC_PASSWORD}"
-      PARASITE_HOST: "parasite.wtf"
-      PARASITE_PORT: "42069"
-      PYTHONUNBUFFERED: "1"
-    entrypoint: ["/bin/sh", "/parasite-proxy-entrypoint.sh"]
-
-  app:
-    image: node:18-alpine
-    user: "1000:1000"
-    restart: on-failure
-    stop_grace_period: 30s
-    depends_on:
-      - parasite-proxy
-    networks:
-      default:
-        aliases:
-          - parasite-app
-      umbrel_main_network:
-        aliases:
-          - parasite-app
-    volumes:
-      - ${APP_DATA_DIR}/data:/data
-      - ${APP_DATA_DIR}:/appdata
-    environment:
-      LIBRE_RPC_HOST: "192.168.50.103"
-      LIBRE_RPC_PORT: "8442"
-      LIBRE_RPC_USER: "umbrel"
-      PORT: "3000"
-    working_dir: /app
-    command: >
-      sh -c "npm install 2>/dev/null && npm start"
 
 networks:
   umbrel_main_network:
