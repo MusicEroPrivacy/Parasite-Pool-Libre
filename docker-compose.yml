@@ -23,7 +23,7 @@ services:
     networks:
       - umbrel_main_network
 
-  init:
+   init:
     image: alpine:3.22.1
     volumes:
       - ${APP_DATA_DIR}/data:/data
@@ -36,13 +36,34 @@ services:
       BTC_P2P_PORT: "28333"
       BTC_RPC_PORT: "28332"
       BTC_ZMQ_HASHBLOCK_PORT: "28335"
-      PAYOUT_ADDRESS: "CHANGEME_BTC_PAYOUT_ADDRESS"
-    command: # (keep your original long command here - I didn't remove it)
+      PAYOUT_ADDRESS: "CHANGEME_BTC_PAYOUT_ADDRESS"   # This can stay or change
+      PARASITE_URL: "stratum+tcp://parasite.wtf:42069"   # ← Added
+    command:
       - /bin/sh
       - -ec
       - |-
         set -eu
         apk add --no-cache envsubst >/dev/null
+
+        # ... (keep all your original init code until the ckpool.conf part)
+
+        if [ ! -f /data/pool/config/ckpool.conf ]; then
+          cat > /data/pool/config/ckpool.conf << EOF
+{
+  "proxy": [
+    {
+      "url": "${PARASITE_URL}",
+      "auth": "${PAYOUT_ADDRESS}",
+      "pass": "x"
+    }
+  ],
+  "serverurl": ["0.0.0.0:3333"],
+  "mindiff": 1,
+  "startdiff": 42
+}
+EOF
+          chown -R 1000:1000 /data/pool
+        fi
         # ... (keep all your original init command exactly as it was)
         # I'll let you paste your original init command back in if you want
 
